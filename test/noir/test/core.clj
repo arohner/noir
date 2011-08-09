@@ -56,17 +56,52 @@
 (deftest route-dot-test
          (-> (send-request "/test.json")
            (has-status 200)
-           (has-content-type (content-types :json))
+           (content-type-contains #"application/json")
            (has-body "{\"json\":\"text\"}")))
 
 (defpage "/utf" []
          "ąčęė")
 
+(defpage foo "/foo" []
+  "named-route")
+
+(deftest named-route-test
+  (-> (send-request "/foo")
+      (has-status 200)
+      (has-body "named-route")))
+
+(deftest url-for-test
+  (is (= "/foo" (url-for foo))))
+
+(defpage [:post "/post-route"] {:keys [nme]}
+  (str "Post " nme))
+
+(deftest route-post-test
+  (-> (send-request [:post "/post-route"] {"nme" "chris"})
+      (has-status 200)
+      (has-body "Post chris")))
+
+(defpage named-route-with-post [:post "/foo"] []
+  "named-post")
+
+(deftest named-route-post-test
+  (-> (send-request [:post "/post-route"] {"nme" "chris"})
+      (has-status 200)
+      (has-body "Post chris")))
+
+(defpage route-one-arg "/one-arg/:id" {id :id})
+
+(deftest url-args
+  (is (= "/one-arg/5" (url-for route-one-arg :id 5))))
+
+(deftest url-for-throws
+  (is (thrown? Exception (url-for route-one-arg))))
+
 (deftest wrap-utf
-         (server/add-middleware middleware/wrap-utf-8)
-         (-> (send-request "/utf")
-           (has-content-type "text/html; charset=utf-8")
-           (has-body "ąčęė")))
+  (with-middleware [middleware/wrap-utf-8]
+    (-> (send-request "/utf")
+      (has-content-type "text/html; charset=utf-8")
+      (has-body "ąčęė"))))
 
 (deftest valid-emails
   (are [email] (vali/is-email? email)

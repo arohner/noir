@@ -23,7 +23,13 @@
   [resp ct]
   (is (= ct (get-in resp [:headers "Content-Type"])))
   resp)
-    
+
+(defn content-type-contains
+  "asserts the content type matches the regex"
+  [resp ct-re]
+  (is (re-find ct-re (get-in resp [:headers "Content-Type"])))
+  resp)
+
 (defn has-status 
   "Asserts that the response has the given status"
   [resp stat]
@@ -48,9 +54,7 @@
   [route & [params]]
   (let [handler (server/gen-handler)]
     (handler (make-request route params))))
-    
 
-
-
-
-
+(defmacro with-middleware [[func & args] & body]
+  `(binding [server/*middleware* (atom (conj @server/*middleware* [~func ~args]))]
+     ~@body))
