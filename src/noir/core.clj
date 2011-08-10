@@ -58,6 +58,34 @@
         m (assoc m :body body)]
     m))
 
+(defmulti coerce
+  "coerces a value into another type"
+  (fn [tag val]
+    tag))
+
+(defmethod coerce :default [tag val]
+  val)
+
+(defmethod coerce :int [tag val]
+  (cond
+   (string? val) (Integer/parseInt val)
+   (integer? val) val
+   :else (throw (Exception. (str "don't know how to convert" (class val) "to integer")))))
+
+(defn coercion-let [destruct]
+  (let [binding-syms (->> [destruct {}]
+                          (destructure)
+                          (partition 2)
+                          (map first))
+        tag-map (into {} (map (fn [sym]
+                                [sym (-> sym meta :tag)]) binding-syms))]
+    (->>
+     binding-syms
+     (filter #(-> % meta :tag))
+     (mapcat (fn [sym]
+               [sym `(coerce ~(-> sym meta :tag) ~sym)]))
+     (into []))))
+
 (defmacro defpage 
   "Adds a route to the server whose content is the the result of evaluating the body.
   The function created is passed the params of the request and the destruct param allows
@@ -78,7 +106,8 @@
        (defn ~fn-name# {::url ~url#
                         ::action (quote ~action#)
                         ::args (quote ~destruct#)} [~destruct#]
-         ~@body#)
+                        (let ~(coercion-let destruct#)
+                          ~@body#))
        (swap! route-funcs assoc ~(keyword fn-name#) ~fn-name#)
        (swap! noir-routes assoc ~(keyword fn-name#) (~action# ~url# {params# :params} (~fn-name# params#))))))
 
